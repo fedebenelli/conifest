@@ -75,7 +75,6 @@ def build_env_figure(res):
         yaxis_title="Presión [bar]",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
         margin=dict(l=48, r=16, t=56, b=44),
-        height=520,
         hovermode="closest",
     )
     fig.update_xaxes(gridcolor="#ececec", showgrid=True)
@@ -208,7 +207,10 @@ def group_card(group):
 
     master = html.Div(
         [
-            html.Label("Participación del grupo", className="text-muted small mb-0"),
+            html.Label(
+                "Participación del grupo",
+                className="text-muted small mb-0 group-label",
+            ),
             dcc.Slider(
                 id=f"grp-{group}",
                 min=0,
@@ -264,14 +266,17 @@ def group_card(group):
             dbc.CardBody(
                 [
                     master,
-                    html.Hr(className="my-2"),
-                    html.Div("Componentes", className="text-muted small mb-1"),
+                    html.Hr(className="my-2 comps-hr"),
+                    html.Div(
+                        "Componentes",
+                        className="text-muted small mb-1 comps-label",
+                    ),
                     dbc.Collapse(individual, id=f"collapse-{slug}", is_open=True),
                 ],
                 className="py-2",
             ),
         ],
-        className="mb-3 shadow-sm",
+        className="mb-3 shadow-sm group-card",
     )
 
 
@@ -283,16 +288,71 @@ app = Dash(
 )
 server = app.server  # para gunicorn / despliegues WSGI
 
+# Breakpoints: en móvil (<=767.98px) solo se ven la gráfica P-T y los 4
+# sliders de grupo (sin scroll); las barras y los sliders individuales se
+# ocultan. El contenido individual se puede desplegar tocando la cabecera.
+app.index_string = """
+<!DOCTYPE html>
+<html>
+    <head>
+        {%metas%}
+        {%title%}
+        {%favicon%}
+        {%css%}
+        <style>
+            /* ---------- Móvil: compacto, sin gráfico de barras ---------- */
+            @media (max-width: 767.98px) {
+                #comp-card { display: none !important; }
+                .app-title { font-size: 1.05rem !important; margin-top: .25rem !important; }
+                .app-subtitle { display: none !important; }
+                .row.g-3 { row-gap: .5rem !important; }
+                #env-card .card-header { padding: .25rem .75rem !important; font-size: .9rem; }
+                #env-card .card-body { padding: .25rem !important; }
+                #env-graph { height: clamp(170px, 27vh, 280px) !important; }
+                .group-card { margin-bottom: .4rem !important; }
+                .group-card .card-header { padding: .1rem .6rem !important; }
+                .group-card .card-header button {
+                    padding-top: .25rem !important;
+                    padding-bottom: .25rem !important;
+                }
+                .group-card .card-body { padding: .15rem .6rem .25rem !important; }
+                .group-card hr.comps-hr,
+                .group-card .comps-label { display: none !important; }
+                .group-label { display: none !important; }
+                .dash-slider-mark { display: none !important; }
+                .dash-range-slider-input { display: none !important; }
+                #reset { padding: .2rem .5rem !important; font-size: .8rem !important; }
+            }
+            /* ---------- Escritorio / tablet ---------- */
+            @media (min-width: 768px) {
+                #env-graph { height: 520px !important; }
+            }
+        </style>
+    </head>
+    <body>
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+        </footer>
+    </body>
+</html>
+"""
+
 app.layout = dbc.Container(
     [
         dcc.Location(id="url"),
         html.Div(
             [
-                html.H3("Envolvente de fases interactiva", className="mb-0 mt-2"),
+                html.H3(
+                    "Envolvente de fases interactiva",
+                    className="mb-0 mt-2 app-title",
+                ),
                 html.P(
                     "Peng-Robinson 78 + regla QMR · yaeos · arrastra los sliders "
                     "y observa cómo cambia la envolvente P-T.",
-                    className="text-muted mb-2",
+                    className="text-muted mb-2 app-subtitle",
                 ),
             ]
         ),
@@ -323,24 +383,25 @@ app.layout = dbc.Container(
                                             "Barra negra = composición por defecto del "
                                             "script. Asfaltenos (C50-C80A): valor fijo "
                                             "1e-6, sin slider.",
-                                            className="text-muted small mb-2",
-                                        ),
-                                        dbc.Button(
-                                            "Restaurar composición por defecto",
-                                            id="reset",
-                                            color="secondary",
-                                            outline=True,
-                                            size="sm",
-                                            className="w-100",
-                                            n_clicks=0,
+                                            className="text-muted small mb-0",
                                         ),
                                     ],
                                     className="pt-1",
                                 ),
                             ],
                             className="mb-3 shadow-sm",
+                            id="comp-card",
                         ),
                         *[group_card(g) for g in em.GROUP_ORDER],
+                        dbc.Button(
+                            "Restaurar composición por defecto",
+                            id="reset",
+                            color="secondary",
+                            outline=True,
+                            size="sm",
+                            className="w-100",
+                            n_clicks=0,
+                        ),
                     ],
                     lg=4,
                     md=12,
@@ -355,8 +416,7 @@ app.layout = dbc.Container(
                                 dbc.CardHeader(
                                     "Envolvente P-T · P vs T",
                                     className="fw-semibold",
-                                ),
-                                dbc.CardBody(
+                                ),                                dbc.CardBody(
                                     dcc.Graph(
                                         id="env-graph",
                                         figure=build_env_figure(
@@ -374,6 +434,7 @@ app.layout = dbc.Container(
                                 ),
                             ],
                             className="shadow-sm",
+                            id="env-card",
                         ),
                     ],
                     lg=8,
@@ -474,7 +535,7 @@ app.clientside_callback(
         const first = trig.length > 0 ? trig[0] : undefined;
         // Primera carga (sin trigger, "." o cambio de URL): según ancho de pantalla
         if (first === undefined || first === '' || first === 'url') {
-            const open = window.innerWidth > 768;
+            const open = window.innerWidth >= 768;
             return Array(n).fill(open);
         }
         const toggles = %(toggles)s;
