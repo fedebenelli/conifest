@@ -1,7 +1,8 @@
 """Webapp interactiva: envolvente de fases P-T según composición.
 
 Dash + Plotly sobre yaeos ( PengRobinson78 + QMR ), misma formulación
-que ``script.py``.
+que ``script.py`` sin el último componente (C50-C80A), que queda fuera
+del modelo.
 
 Ejecutar localmente::
 
@@ -21,7 +22,7 @@ import envelope_model as em
 # ---------------------------------------------------------------------------
 # Derivados de la composición por defecto
 # ---------------------------------------------------------------------------
-Z_DEFAULT = em.normalize(em.sliders_default)  # normalizada, 15 componentes
+Z_DEFAULT = em.normalize(em.sliders_default)  # normalizada, 14 componentes
 COMP_GROUP = {i: g for g, idxs in em.GROUPS.items() for i in idxs}
 
 GROUP_SLUG = {g: g.lower() for g in em.GROUP_ORDER}
@@ -161,7 +162,7 @@ def adjust_group(raw, key, share):
             _fill_from_defaults(raw, idx)
         return [min(max(v, 0.0), 1.0) for v in raw]
 
-    target = share * (others + em.ASPHALTENE_FIXED) / (1.0 - share)
+    target = share * others / (1.0 - share)
     if group_sum > 0:
         factor = target / group_sum
         for i in idx:
@@ -380,9 +381,8 @@ app.layout = dbc.Container(
                                             style={"height": "320px"},
                                         ),
                                         html.P(
-                                            "Barra negra = composición por defecto del "
-                                            "script. Asfaltenos (C50-C80A): valor fijo "
-                                            "1e-6, sin slider.",
+                                            "Barra negra = composición por defecto "
+                                            "del script.",
                                             className="text-muted small mb-0",
                                         ),
                                     ],
