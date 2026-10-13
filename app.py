@@ -293,7 +293,10 @@ def create_demo():
         def on_change(*args):
             ind_vals = args[:len(ind_sliders)]
             grp_vals = args[len(ind_sliders):len(ind_sliders) + len(grp_sliders)]
-            reset_clicked = args[-1] is not None and args[-1] > 0
+            try:
+                reset_clicked = args[-1] is not None and float(args[-1]) > 0
+            except (TypeError, ValueError):
+                reset_clicked = False
             return update(ind_vals, grp_vals, reset_clicked)
 
         for s in ind_sliders + grp_sliders:
