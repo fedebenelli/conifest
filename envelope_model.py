@@ -86,10 +86,10 @@ GROUPS = {
 GROUP_ORDER = list(GROUPS)
 
 GROUP_COLORS = {
-    "Gases": "#1f77b4",
-    "CO2": "#d62728",
-    "Intermedios": "#2ca02c",
-    "Pesados": "#9467bd",
+    "Gases": "#45b7d1",
+    "CO2": "#e84393",
+    "Intermedios": "#fdcb6e",
+    "Pesados": "#6c5ce7",
 }
 
 

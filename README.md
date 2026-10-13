@@ -3,7 +3,8 @@ title: Envolvente de Fases Interactiva
 emoji: 🌡️
 colorFrom: blue
 colorTo: green
-sdk: docker
+sdk: gradio
+sdk_version: 5.0.0
 app_port: 7860
 pinned: false
 ---
@@ -17,7 +18,7 @@ de 14 componentes (gases, CO₂, intermedios y pesados) usando
 
 La composición por defecto es la del `script.py` de este repositorio (sin el
 último componente, C50-C80A); muévela con los sliders y observa en tiempo real
-(~50 ms) cómo cambia la envolvente P vs T.
+cómo cambia la envolvente P vs T.
 
 ## Características
 
@@ -32,33 +33,14 @@ La composición por defecto es la del `script.py` de este repositorio (sin el
   grupo) con la composición por defecto como referencia.
 - Manejo de errores: composiciones extremas muestran un aviso en lugar de
   romper la app.
-- **Responsive**: usable en smartphone (gráfica primero, grupos en acordeones
-  plegados) y en computadora (sidebar + gráfica).
 
 ## Ejecutar localmente
 
 ```bash
 pip install -r requirements.txt
 python app.py
-# http://localhost:8050
+# http://localhost:7860
 ```
-
-## Despliegue en Hugging Face Spaces
-
-Este README incluye el front-matter (`sdk: docker`) que define el Space.
-El `Dockerfile` expone el puerto **7860**. Publicar:
-
-```bash
-huggingface-cli login
-huggingface-cli upload <usuario>/envolvente-fases . . --repo-type=space
-```
-
-> **Requisito**: `yaeos==4.5.4` debe estar publicado en PyPI. Las ruedas de
-> 4.5.3 traían `PT_GNU_STACK RWE` (stack ejecutable), que kernels ≥ 6.13
-> rechazan al cargar el `.so`; 4.5.4 se publica con `-Wl,-z,noexecstack`.
-> Verificar antes de construir la imagen:
-> `pip download yaeos==4.5.4 --only-binary=:all: -d /tmp/y` y comprobar
-> `readelf -lW .../yaeos/lib/*.so | grep GNU_STACK` → debe dar `RW`.
 
 ## Estructura
 
@@ -66,9 +48,8 @@ huggingface-cli upload <usuario>/envolvente-fases . . --repo-type=space
 |---|---|
 | `script.py` | Script original (referencia, incluye C50-C80A) |
 | `envelope_model.py` | Modelo termodinámico + cálculo de la envolvente (caché y errores) |
-| `app.py` | Layout Dash y callbacks |
+| `app.py` | Layout Gradio y callbacks |
 | `requirements.txt` | Dependencias |
-| `Dockerfile` | Contenedor para HF Spaces |
 
 ## Verificación
 

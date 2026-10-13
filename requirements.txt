@@ -1,5 +1,4 @@
-dash>=2.18
-dash-bootstrap-components>=2.0
+gradio>=5.0
 plotly>=6.0
 numpy>=1.26
-yaeos==4.5.4
+yaeos>=4.5.4

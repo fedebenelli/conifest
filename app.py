@@ -1,42 +1,37 @@
 """Webapp interactiva: envolvente de fases P-T según composición.
 
-Dash + Plotly sobre yaeos ( PengRobinson78 + QMR ), misma formulación
+Gradio + Plotly sobre yaeos (PengRobinson78 + QMR), misma formulación
 que ``script.py`` sin el último componente (C50-C80A), que queda fuera
 del modelo.
 
 Ejecutar localmente::
 
     python app.py
-    # -> http://localhost:8050  (o $PORT)
+    # -> http://localhost:7860
 """
 
-import os
-
-import dash_bootstrap_components as dbc
 import numpy as np
 import plotly.graph_objects as go
-from dash import Dash, Input, Output, State, callback, dcc, ctx, html, no_update
+import gradio as gr
 
 import envelope_model as em
 
 # ---------------------------------------------------------------------------
 # Derivados de la composición por defecto
 # ---------------------------------------------------------------------------
-Z_DEFAULT = em.normalize(em.sliders_default)  # normalizada, 14 componentes
+Z_DEFAULT = em.normalize(em.sliders_default)
 COMP_GROUP = {i: g for g, idxs in em.GROUPS.items() for i in idxs}
-
 GROUP_SLUG = {g: g.lower() for g in em.GROUP_ORDER}
+
 
 # ---------------------------------------------------------------------------
 # Figuras
 # ---------------------------------------------------------------------------
-
-
 def build_env_figure(res):
     """P [bar] vs T [K] con ramas líquido/vapor y punto crítico."""
     fig = go.Figure()
     labels = {"liquid": "Líquido", "vapor": "Vapor"}
-    colors = {"liquid": "#1f77b4", "vapor": "#e8833a"}
+    colors = {"liquid": "#1f6fb2", "vapor": "#e07b39"}
     t, p, kinds = res["temperatures"], res["pressures"], res["kinds"]
     for kind in ("liquid", "vapor"):
         mask = kinds == kind
@@ -46,10 +41,14 @@ def build_env_figure(res):
         ys = [float(a) if m else None for a, m in zip(p, mask)]
         fig.add_trace(
             go.Scatter(
-                x=xs,
-                y=ys,
-                mode="lines",
-                name=labels[kind],
+                x=xs, y=ys, mode="lines",
+                line=dict(color=colors[kind], width=8),
+                opacity=0.15, hoverinfo="skip", showlegend=False,
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=xs, y=ys, mode="lines", name=labels[kind],
                 line=dict(color=colors[kind], width=2.5),
                 hovertemplate=(
                     "T = %{x:.1f} K<br>P = %{y:.2f} bar"
@@ -60,11 +59,10 @@ def build_env_figure(res):
     if len(res["critical_t"]):
         fig.add_trace(
             go.Scatter(
-                x=res["critical_t"],
-                y=res["critical_p"],
-                mode="markers",
+                x=res["critical_t"], y=res["critical_p"], mode="markers",
                 name="Punto crítico",
-                marker=dict(color="black", size=10, symbol="diamond"),
+                marker=dict(color="#0f141b", size=12, symbol="diamond",
+                           line=dict(color="#ffffff", width=2)),
                 hovertemplate=(
                     "Tc = %{x:.1f} K<br>Pc = %{y:.1f} bar<extra>Crítico</extra>"
                 ),
@@ -72,14 +70,22 @@ def build_env_figure(res):
         )
     fig.update_layout(
         template="plotly_white",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
         xaxis_title="Temperatura [K]",
         yaxis_title="Presión [bar]",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
+                   font=dict(size=11, color="#64748b")),
         margin=dict(l=48, r=16, t=56, b=44),
         hovermode="closest",
+        font=dict(family="Inter, system-ui, sans-serif", color="#1e293b"),
     )
-    fig.update_xaxes(gridcolor="#ececec", showgrid=True)
-    fig.update_yaxes(gridcolor="#ececec", showgrid=True)
+    fig.update_xaxes(range=[200, 900], gridcolor="rgba(148,163,184,0.15)",
+                     showgrid=True, zeroline=False,
+                     linecolor="rgba(148,163,184,0.3)")
+    fig.update_yaxes(range=[0, 350], gridcolor="rgba(148,163,184,0.15)",
+                     showgrid=True, zeroline=False,
+                     linecolor="rgba(148,163,184,0.3)")
     return fig
 
 
@@ -95,10 +101,8 @@ def build_comp_figure(z):
     fig = go.Figure()
     fig.add_trace(
         go.Bar(
-            x=xs,
-            y=vals,
-            marker_color=colors,
-            name="Actual",
+            x=xs, y=vals, marker_color=colors, name="Actual",
+            marker_line_width=0,
             customdata=np.array([groups, defaults]).T,
             hovertemplate=(
                 "<b>%{x}</b> · %{customdata[0]}<br>"
@@ -110,24 +114,26 @@ def build_comp_figure(z):
     )
     fig.add_trace(
         go.Bar(
-            x=xs,
-            y=defaults,
-            marker_color="#222222",
-            width=0.12,
-            name="Por defecto",
+            x=xs, y=defaults, marker_color="rgba(30,41,59,0.4)",
+            width=0.12, name="Por defecto",
             hovertemplate="Defecto: %{y:.4f} %<extra></extra>",
         )
     )
     fig.update_layout(
         template="plotly_white",
-        barmode="overlay",
-        bargap=0.25,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        barmode="overlay", bargap=0.25,
         yaxis_title="Fracción molar [%]",
-        legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="left", x=0),
+        legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="left", x=0,
+                   font=dict(size=11, color="#64748b")),
         margin=dict(l=48, r=16, t=48, b=36),
         height=320,
+        font=dict(family="Inter, system-ui, sans-serif", color="#1e293b"),
     )
-    fig.update_yaxes(gridcolor="#ececec", showgrid=True)
+    fig.update_yaxes(gridcolor="rgba(148,163,184,0.15)", showgrid=True,
+                     zeroline=False, linecolor="rgba(148,163,184,0.3)")
+    fig.update_xaxes(zeroline=False, linecolor="rgba(148,163,184,0.3)")
     return fig
 
 
@@ -141,7 +147,7 @@ def _fill_from_defaults(raw, idx, target=None):
         base = target if target is not None else dsum
         for i in idx:
             raw[i] = base * em.sliders_default[i] / dsum
-    else:  # sin referencia: reparto uniforme
+    else:
         base = target if target is not None else 0.0
         for i in idx:
             raw[i] = base / len(idx)
@@ -154,7 +160,7 @@ def adjust_group(raw, key, share):
     group_sum = sum(raw[i] for i in idx)
     others = sum(raw) - group_sum
 
-    if share >= 0.99999:  # dejar solo este grupo
+    if share >= 0.99999:
         for j in range(len(raw)):
             if j not in idx:
                 raw[j] = 0.0
@@ -173,318 +179,23 @@ def adjust_group(raw, key, share):
 
 
 # ---------------------------------------------------------------------------
-# Layout
+# Callback principal
 # ---------------------------------------------------------------------------
-def group_card(group):
-    slug = GROUP_SLUG[group]
-    color = em.GROUP_COLORS[group]
-    share0 = em.group_shares(em.sliders_default)[group]
-
-    header = dbc.Button(
-        [
-            html.Span(
-                style={
-                    "display": "inline-block",
-                    "width": "12px",
-                    "height": "12px",
-                    "borderRadius": "3px",
-                    "backgroundColor": color,
-                },
-            ),
-            html.Span(group, className="fw-semibold"),
-            html.Span(
-                f"{share0:.1f} %",
-                id=f"share-{slug}",
-                className="badge border ms-auto",
-                style={"color": "#495057", "backgroundColor": "#f8f9fa"},
-            ),
-            html.Span("▾", className="text-muted"),
-        ],
-        id=f"toggle-{slug}",
-        color="link",
-        className="w-100 text-start d-flex align-items-center gap-2 text-decoration-none py-2",
-        n_clicks=0,
-    )
-
-    master = html.Div(
-        [
-            html.Label(
-                "Participación del grupo",
-                className="text-muted small mb-0 group-label",
-            ),
-            dcc.Slider(
-                id=f"grp-{group}",
-                min=0,
-                max=100,
-                step=0.1,
-                value=share0,
-                marks={0: "0 %", 25: "25 %", 50: "50 %", 75: "75 %", 100: "100 %"},
-                tooltip={"placement": "bottom"},
-                updatemode="drag",
-            ),
-        ],
-        className="mb-1",
-    )
-
-    individual = []
-    for comp in em.GROUPS[group]:
-        individual.append(
-            html.Div(
-                [
-                    html.Div(
-                        [
-                            html.Span(
-                                style={
-                                    "display": "inline-block",
-                                    "width": "8px",
-                                    "height": "8px",
-                                    "borderRadius": "2px",
-                                    "backgroundColor": color,
-                                },
-                            ),
-                            html.Span(em.names[comp], className="small fw-semibold"),
-                        ],
-                        className="d-flex align-items-center gap-1",
-                    ),
-                    dcc.Slider(
-                        id=f"ind-{comp}",
-                        min=0,
-                        max=1,
-                        step=0.0001,
-                        value=em.sliders_default[comp],
-                        marks={0: "0", 0.5: "0.5", 1: "1"},
-                        tooltip={"placement": "bottom"},
-                        updatemode="drag",
-                        className="mb-2",
-                    ),
-                ],
-            )
-        )
-
-    return dbc.Card(
-        [
-            dbc.CardHeader(header, className="p-0 px-2"),
-            dbc.CardBody(
-                [
-                    master,
-                    html.Hr(className="my-2 comps-hr"),
-                    html.Div(
-                        "Componentes",
-                        className="text-muted small mb-1 comps-label",
-                    ),
-                    dbc.Collapse(individual, id=f"collapse-{slug}", is_open=True),
-                ],
-                className="py-2",
-            ),
-        ],
-        className="mb-3 shadow-sm group-card",
-    )
-
-
-app = Dash(
-    __name__,
-    external_stylesheets=[dbc.themes.FLATLY],
-    title="Envolvente de fases",
-    meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],
-)
-server = app.server  # para gunicorn / despliegues WSGI
-
-# Breakpoints: en móvil (<=767.98px) solo se ven la gráfica P-T y los 4
-# sliders de grupo (sin scroll); las barras y los sliders individuales se
-# ocultan. El contenido individual se puede desplegar tocando la cabecera.
-app.index_string = """
-<!DOCTYPE html>
-<html>
-    <head>
-        {%metas%}
-        {%title%}
-        {%favicon%}
-        {%css%}
-        <style>
-            /* ---------- Móvil: compacto, sin gráfico de barras ---------- */
-            @media (max-width: 767.98px) {
-                #comp-card { display: none !important; }
-                .app-title { font-size: 1.05rem !important; margin-top: .25rem !important; }
-                .app-subtitle { display: none !important; }
-                .row.g-3 { row-gap: .5rem !important; }
-                #env-card .card-header { padding: .25rem .75rem !important; font-size: .9rem; }
-                #env-card .card-body { padding: .25rem !important; }
-                #env-graph { height: clamp(170px, 27vh, 280px) !important; }
-                .group-card { margin-bottom: .4rem !important; }
-                .group-card .card-header { padding: .1rem .6rem !important; }
-                .group-card .card-header button {
-                    padding-top: .25rem !important;
-                    padding-bottom: .25rem !important;
-                }
-                .group-card .card-body { padding: .15rem .6rem .25rem !important; }
-                .group-card hr.comps-hr,
-                .group-card .comps-label { display: none !important; }
-                .group-label { display: none !important; }
-                .dash-slider-mark { display: none !important; }
-                .dash-range-slider-input { display: none !important; }
-                #reset { padding: .2rem .5rem !important; font-size: .8rem !important; }
-            }
-            /* ---------- Escritorio / tablet ---------- */
-            @media (min-width: 768px) {
-                #env-graph { height: 520px !important; }
-            }
-        </style>
-    </head>
-    <body>
-        {%app_entry%}
-        <footer>
-            {%config%}
-            {%scripts%}
-            {%renderer%}
-        </footer>
-    </body>
-</html>
-"""
-
-app.layout = dbc.Container(
-    [
-        dcc.Location(id="url"),
-        html.Div(
-            [
-                html.H3(
-                    "Envolvente de fases interactiva",
-                    className="mb-0 mt-2 app-title",
-                ),
-                html.P(
-                    "Peng-Robinson 78 + regla QMR · yaeos · arrastra los sliders "
-                    "y observa cómo cambia la envolvente P-T.",
-                    className="text-muted mb-2 app-subtitle",
-                ),
-            ]
-        ),
-        dbc.Row(
-            [
-                # ---------------- Sidebar: composición ----------------
-                dbc.Col(
-                    [
-                        dbc.Card(
-                            [
-                                dbc.CardHeader(
-                                    "Composición de la mezcla",
-                                    className="fw-semibold",
-                                ),
-                                dbc.CardBody(
-                                    [
-                                        dcc.Graph(
-                                            id="comp-graph",
-                                            figure=build_comp_figure(Z_DEFAULT),
-                                            config={
-                                                "displayModeBar": False,
-                                                "responsive": True,
-                                                "scrollZoom": False,
-                                            },
-                                            style={"height": "320px"},
-                                        ),
-                                        html.P(
-                                            "Barra negra = composición por defecto "
-                                            "del script.",
-                                            className="text-muted small mb-0",
-                                        ),
-                                    ],
-                                    className="pt-1",
-                                ),
-                            ],
-                            className="mb-3 shadow-sm",
-                            id="comp-card",
-                        ),
-                        *[group_card(g) for g in em.GROUP_ORDER],
-                        dbc.Button(
-                            "Restaurar composición por defecto",
-                            id="reset",
-                            color="secondary",
-                            outline=True,
-                            size="sm",
-                            className="w-100",
-                            n_clicks=0,
-                        ),
-                    ],
-                    lg=4,
-                    md=12,
-                    className="order-2 order-lg-1 pb-4",
-                ),
-                # ---------------- Gráfica envolvente ----------------
-                dbc.Col(
-                    [
-                        html.Div(id="status"),
-                        dbc.Card(
-                            [
-                                dbc.CardHeader(
-                                    "Envolvente P-T · P vs T",
-                                    className="fw-semibold",
-                                ),                                dbc.CardBody(
-                                    dcc.Graph(
-                                        id="env-graph",
-                                        figure=build_env_figure(
-                                            em.compute_envelope(em.sliders_default)
-                                        ),
-                                        config={
-                                            "displayModeBar": "hover",
-                                            "responsive": True,
-                                            "scrollZoom": False,
-                                            "doubleClick": "reset",
-                                        },
-                                        style={"height": "520px"},
-                                    ),
-                                    className="p-2",
-                                ),
-                            ],
-                            className="shadow-sm",
-                            id="env-card",
-                        ),
-                    ],
-                    lg=8,
-                    md=12,
-                    className="order-1 order-lg-2 pb-3",
-                ),
-            ],
-            className="g-3",
-        ),
-    ],
-    fluid=True,
-    className="px-3 px-md-4",
-)
-
-# ---------------------------------------------------------------------------
-# Callback principal: sliders -> composición -> envolvente + barras
-# ---------------------------------------------------------------------------
-GROUP_KEYS = em.GROUP_ORDER
-N_IND = len(em.VISIBLE)
-
-_ind_inputs = [Input(f"ind-{i}", "value") for i in em.VISIBLE]
-_grp_inputs = [Input(f"grp-{g}", "value") for g in GROUP_KEYS]
-
-
-@callback(
-    Output("env-graph", "figure"),
-    Output("comp-graph", "figure"),
-    Output("status", "children"),
-    *[Output(f"ind-{i}", "value") for i in em.VISIBLE],
-    *[Output(f"grp-{g}", "value") for g in GROUP_KEYS],
-    *[Output(f"share-{GROUP_SLUG[g]}", "children") for g in GROUP_KEYS],
-    *_ind_inputs,
-    *_grp_inputs,
-    Input("reset", "n_clicks"),
-)
-def update(*args):
-    ind_vals = args[:N_IND]
-    grp_vals = args[N_IND:N_IND + len(GROUP_KEYS)]
-    triggered = ctx.triggered_id
-
+def update(ind_vals, grp_vals, reset_clicked):
+    """Recibe todos los valores de sliders y devuelve figuras + nuevos valores."""
     raw = [
         float(v) if v is not None else d
         for v, d in zip(ind_vals, em.sliders_default)
     ]
-    if triggered == "reset":
+
+    # Si se pulsó reset, restaurar defaults
+    if reset_clicked:
         raw = list(em.sliders_default)
-    elif triggered is not None and str(triggered).startswith("grp-"):
-        key = str(triggered)[len("grp-"):]
-        if key in GROUP_KEYS and grp_vals[GROUP_KEYS.index(key)] is not None:
-            raw = adjust_group(raw, key, float(grp_vals[GROUP_KEYS.index(key)]) / 100.0)
+    else:
+        # Aplicar sliders de grupo
+        for i, g in enumerate(em.GROUP_ORDER):
+            if grp_vals[i] is not None:
+                raw = adjust_group(raw, g, float(grp_vals[i]) / 100.0)
 
     shares = em.group_shares(raw)
     z = em.normalize(raw)
@@ -493,71 +204,116 @@ def update(*args):
 
     env = em.compute_envelope(raw)
     if env is None:
-        env_fig = no_update
-        status = dbc.Alert(
-            "No fue posible calcular la envolvente para esta composición. "
-            "Prueba con una mezcla más cercana a la defecto "
-            "(restaurar valores) o con menos componentes en cero.",
-            color="warning",
-            className="py-2",
+        env_fig = go.Figure()
+        env_fig.add_annotation(
+            text="No fue posible calcular la envolvente para esta composición.<br>"
+                 "Prueba con una mezcla más cercana a la defecto o con menos componentes en cero.",
+            xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False,
+            font=dict(size=14, color="#b45309"),
         )
+        env_fig.update_layout(
+            template="plotly_white",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            xaxis=dict(visible=False), yaxis=dict(visible=False),
+            margin=dict(l=20, r=20, t=20, b=20),
+        )
+        status = "⚠️ Composición inválida"
     else:
         env_fig = build_env_figure(env)
         status = None
 
-    return (
-        env_fig,
-        build_comp_figure(z),
-        status,
-        *raw,
-        *[shares[g] for g in GROUP_KEYS],
-        *[f"{shares[g]:.1f} %" for g in GROUP_KEYS],
-    )
+    comp_fig = build_comp_figure(z)
+
+    # Nuevos valores para sliders individuales y de grupo
+    new_ind = list(raw)
+    new_grp = [shares[g] for g in em.GROUP_ORDER]
+
+    return env_fig, comp_fig, status, new_ind, new_grp
 
 
 # ---------------------------------------------------------------------------
-# Acordeones de grupo: abiertos en escritorio, plegados en móvil
+# Layout Gradio
 # ---------------------------------------------------------------------------
-_collapse_outputs = [Output(f"collapse-{GROUP_SLUG[g]}", "is_open") for g in GROUP_KEYS]
-_collapse_inputs = [Input("url", "pathname")] + [
-    Input(f"toggle-{GROUP_SLUG[g]}", "n_clicks") for g in GROUP_KEYS
-]
-_collapse_states = [State(f"collapse-{GROUP_SLUG[g]}", "is_open") for g in GROUP_KEYS]
+def create_demo():
+    with gr.Blocks(title="Envolvente de fases", theme=gr.themes.Soft()) as demo:
+        gr.Markdown(
+            "# 🌡️ Envolvente de fases interactiva\n"
+            "Peng-Robinson 78 + regla QMR · yaeos · arrastra los sliders "
+            "y observa cómo cambia la envolvente P-T."
+        )
 
-app.clientside_callback(
-    """
-    function(pathname, ...rest) {
-        const n = %(n)d;
-        const states = rest.slice(n, 2 * n);
-        const trig = dash_clientside.callback_context.triggered.map(
-            t => t.prop_id.split('.')[0]
-        );
-        const first = trig.length > 0 ? trig[0] : undefined;
-        // Primera carga (sin trigger, "." o cambio de URL): según ancho de pantalla
-        if (first === undefined || first === '' || first === 'url') {
-            const open = window.innerWidth >= 768;
-            return Array(n).fill(open);
-        }
-        const toggles = %(toggles)s;
-        const idx = toggles.indexOf(first);
-        const out = states.slice();
-        if (idx >= 0) {
-            out[idx] = !states[idx];
-        }
-        return out;
-    }
-    """
-    % {
-        "n": len(GROUP_KEYS),
-        "toggles": str([f"toggle-{GROUP_SLUG[g]}" for g in GROUP_KEYS]),
-    },
-    *_collapse_outputs,
-    *_collapse_inputs,
-    *_collapse_states,
-)
+        with gr.Row():
+            # ---------------- Sidebar: composición ----------------
+            with gr.Column(scale=1, min_width=300):
+                gr.Markdown("### Composición de la mezcla")
+                comp_plot = gr.Plot(value=build_comp_figure(Z_DEFAULT), label="Composición")
+
+                gr.Markdown("**Barra negra** = composición por defecto del script.")
+
+                # Sliders de grupo
+                grp_sliders = []
+                for g in em.GROUP_ORDER:
+                    share0 = em.group_shares(em.sliders_default)[g]
+                    s = gr.Slider(
+                        minimum=0, maximum=100, value=share0, step=0.1,
+                        label=f"{g} — participación en la mezcla (%)",
+                        info=f"Slider maestro del grupo {g}",
+                    )
+                    grp_sliders.append(s)
+
+                gr.Markdown("---")
+                gr.Markdown("### Componentes individuales")
+
+                # Sliders individuales
+                ind_sliders = []
+                for i in em.VISIBLE:
+                    s = gr.Slider(
+                        minimum=0, maximum=1, value=em.sliders_default[i], step=0.0001,
+                        label=em.names[i],
+                        info=f"{COMP_GROUP[i]} — fracción molar",
+                    )
+                    ind_sliders.append(s)
+
+                reset_btn = gr.Button("Restaurar composición por defecto", variant="secondary")
+
+            # ---------------- Gráfica envolvente ----------------
+            with gr.Column(scale=2, min_width=500):
+                status_box = gr.Textbox(label="Estado", visible=False, interactive=False)
+                env_plot = gr.Plot(
+                    value=build_env_figure(em.compute_envelope(em.sliders_default)),
+                    label="Envolvente P-T",
+                )
+
+        # -------------------------------------------------------------------
+        # Conectar callbacks
+        # -------------------------------------------------------------------
+        all_inputs = ind_sliders + grp_sliders + [reset_btn]
+
+        def on_change(*args):
+            ind_vals = args[:len(ind_sliders)]
+            grp_vals = args[len(ind_sliders):len(ind_sliders) + len(grp_sliders)]
+            reset_clicked = args[-1] is not None and args[-1] > 0
+            return update(ind_vals, grp_vals, reset_clicked)
+
+        for s in ind_sliders + grp_sliders:
+            s.change(
+                fn=on_change,
+                inputs=all_inputs,
+                outputs=[env_plot, comp_plot, status_box] + ind_sliders + grp_sliders,
+            )
+
+        reset_btn.click(
+            fn=lambda: update(list(em.sliders_default), None, True),
+            inputs=None,
+            outputs=[env_plot, comp_plot, status_box] + ind_sliders + grp_sliders,
+        )
+
+    return demo
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8050))
-    app.run(host="0.0.0.0", port=port, debug=False)
-
+    import os
+    demo = create_demo()
+    port = int(os.environ.get("PORT", 7860))
+    demo.launch(server_name="0.0.0.0", server_port=port)
