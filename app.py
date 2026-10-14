@@ -230,8 +230,12 @@ def main():
             st.session_state.pending_raw = list(em.sliders_default)
             st.rerun()
 
-        # Mostrar figura de composición
-        z_display = em.normalize(st.session_state.applied_raw)
+        # Calcular composición en tiempo real desde los sliders (para el gráfico de barras)
+        raw_display = list(em.sliders_default)
+        for g in GROUP_MAP:
+            raw_display = adjust_group(raw_display, g, grp_vals[g] / 100.0)
+
+        z_display = em.normalize(raw_display)
         if z_display is None:
             z_display = np.zeros(em.nc)
         st.plotly_chart(build_comp_figure(z_display), use_container_width=True)
