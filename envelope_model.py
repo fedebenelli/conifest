@@ -78,6 +78,11 @@ GROUPS = {
     "Pesados": [11, 12, 13],
 }
 GROUPS_INV = {i: g for g, idxs in GROUPS.items() for i in idxs}
+GROUP_COLORS = {
+    "Gases": "#45b7d1",
+    "Intermedios": "#fdcb6e",
+    "Pesados": "#6c5ce7",
+}
 ALL_GROUPS = ["Gases", "Intermedios", "Pesados"]
 
 
