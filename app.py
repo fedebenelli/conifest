@@ -265,35 +265,24 @@ def main():
     }
 
     # -----------------------------------------------------------------------
-    # Tres sliders principales
+    # Sliders en una fila compacta (3 columnas en desktop, apiladas en móvil)
     # -----------------------------------------------------------------------
-    col_sidebar, col_main = st.columns([1, 2])
+    st.markdown("### Composición de la mezcla")
+    slider_cols = st.columns(3)
 
-    with col_sidebar:
-        st.markdown("### Composición de la mezcla")
-
-        grp_vals = {}
-        for g in GROUP_MAP:
+    grp_vals = {}
+    for i, g in enumerate(GROUP_MAP):
+        with slider_cols[i]:
             grp_vals[g] = st.slider(
                 f"{g}", 0.0, 100.0, default_shares[g], 0.1,
                 key=f"slider-{g}",
                 help=f"Incluye: {', '.join(em.names[i] for i in GROUP_MAP[g])}",
             )
 
-        if st.button("Restaurar por defecto", use_container_width=True):
-            st.session_state.applied_raw = list(em.sliders_default)
-            st.session_state.pending_raw = list(em.sliders_default)
-            st.rerun()
-
-        # Calcular composición en tiempo real desde los sliders (para el gráfico de barras)
-        raw_display = list(em.sliders_default)
-        for g in GROUP_MAP:
-            raw_display = adjust_group(raw_display, g, grp_vals[g] / 100.0)
-
-        z_display = em.normalize(raw_display)
-        if z_display is None:
-            z_display = np.zeros(em.nc)
-        st.plotly_chart(build_comp_figure(z_display), use_container_width=True)
+    if st.button("Restaurar por defecto", use_container_width=True):
+        st.session_state.applied_raw = list(em.sliders_default)
+        st.session_state.pending_raw = list(em.sliders_default)
+        st.rerun()
 
     # -----------------------------------------------------------------------
     # Detección de "slider soltado": aplica el cálculo con debounce
@@ -323,17 +312,16 @@ def main():
     # -----------------------------------------------------------------------
     # Gráfica envolvente P-T (usando composición aplicada)
     # -----------------------------------------------------------------------
-    with col_main:
-        applied = st.session_state.applied_raw
-        env = em.compute_envelope(applied)
+    applied = st.session_state.applied_raw
+    env = em.compute_envelope(applied)
 
-        if env is None:
-            st.warning(
-                "No fue posible calcular la envolvente para esta composición. "
-                "Prueba con una mezcla más cercana a la defecto."
-            )
-        else:
-            st.plotly_chart(build_env_figure(env), use_container_width=True)
+    if env is None:
+        st.warning(
+            "No fue posible calcular la envolvente para esta composición. "
+            "Prueba con una mezcla más cercana a la defecto."
+        )
+    else:
+        st.plotly_chart(build_env_figure(env), use_container_width=True)
 
 
 if __name__ == "__main__":
