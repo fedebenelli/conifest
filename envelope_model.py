@@ -66,6 +66,9 @@ z_default_raw = [
     0.22738, 0.03747, 0.0023, 0.00054,
 ]
 
+# Variables de compatibilidad con app.py
+sliders_default = list(z_default_raw)
+VISIBLE = list(range(nc_full))
 # ---------------------------------------------------------------------------
 # Definición de grupos (Gases incluye CO2)
 # ---------------------------------------------------------------------------
@@ -74,6 +77,7 @@ GROUPS = {
     "Intermedios": [7, 8, 9, 10],
     "Pesados": [11, 12, 13],
 }
+GROUPS_INV = {i: g for g, idxs in GROUPS.items() for i in idxs}
 ALL_GROUPS = ["Gases", "Intermedios", "Pesados"]
 
 

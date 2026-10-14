@@ -24,7 +24,7 @@ st.set_page_config(page_title="Envolvente de fases", page_icon="🌡️", layout
 # Configuración de grupos: Gases (con CO2), Intermedios, Pesados
 # ---------------------------------------------------------------------------
 GROUP_MAP = {
-    "Gases": em.GROUPS["Gases"] + em.GROUPS["CO2"],
+    "Gases": em.GROUPS["Gases"],
     "Intermedios": em.GROUPS["Intermedios"],
     "Pesados": em.GROUPS["Pesados"],
 }
@@ -193,8 +193,7 @@ def main():
     )
 
     # Mapeo inverso de componente a grupo para colores
-    if not hasattr(em, "GROUPS_INV"):
-        em.GROUPS_INV = {i: g for g, idxs in GROUP_MAP.items() for i in idxs}
+    GROUPS_INV = em.GROUPS_INV
 
     # Estado inicial
     if "applied_raw" not in st.session_state:
