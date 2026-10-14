@@ -54,41 +54,7 @@ def build_env_figure(res):
         if not valid:
             continue
 
-        if kind == "liquid":
-            # Punto más a la izquierda de la curva de burbuja
-            leftmost = min(valid, key=lambda p: p[0])
-            # Etiqueta "Líquido" a la izquierda y arriba de ese punto
-            x_left = min(leftmost[0] - 50, 400)
-            y_top = leftmost[1] * 1.5
-            liquid_x = max(210, x_left)
-            liquid_y = min(340, y_top)
-        else:
-            # Punto más a la derecha de la curva de rocío
-            rightmost = max(valid, key=lambda p: p[0])
-            # Etiqueta "Gas" a la derecha y abajo de ese punto
-            x_right = rightmost[0] + 50
-            y_bottom = rightmost[1] * 0.3
-            vapor_x = min(890, x_right)
-            vapor_y = max(10, y_bottom)
-
-    # Añadir las anotaciones después de calcular ambas posiciones
-    if liquid_x is not None and liquid_y is not None:
-        fig.add_annotation(
-            x=liquid_x, y=liquid_y,
-            text="<b>Líquido</b>",
-            showarrow=False,
-            font=dict(size=16, color="#1f6fb2"),
-            opacity=0.6,
-        )
-    if vapor_x is not None and vapor_y is not None:
-        fig.add_annotation(
-            x=vapor_x, y=vapor_y,
-            text="<b>Gas</b>",
-            showarrow=False,
-            font=dict(size=16, color="#e07b39"),
-            opacity=0.6,
-        )
-
+        # Graficar la línea (glow + línea principal)
         fig.add_trace(
             go.Scatter(
                 x=xs, y=ys, mode="lines",
@@ -105,6 +71,38 @@ def build_env_figure(res):
                     f"<extra>{labels[kind]}</extra>"
                 ),
             )
+        )
+
+        # Calcular posición de anotación de región
+        if kind == "liquid":
+            leftmost = min(valid, key=lambda p: p[0])
+            x_left = min(leftmost[0] - 50, 400)
+            y_top = leftmost[1] * 1.5
+            liquid_x = max(210, x_left)
+            liquid_y = min(340, y_top)
+        else:
+            rightmost = max(valid, key=lambda p: p[0])
+            x_right = rightmost[0] + 50
+            y_bottom = rightmost[1] * 0.3
+            vapor_x = min(890, x_right)
+            vapor_y = max(10, y_bottom)
+
+    # Añadir las anotaciones de región
+    if liquid_x is not None and liquid_y is not None:
+        fig.add_annotation(
+            x=liquid_x, y=liquid_y,
+            text="<b>Líquido</b>",
+            showarrow=False,
+            font=dict(size=16, color="#1f6fb2"),
+            opacity=0.6,
+        )
+    if vapor_x is not None and vapor_y is not None:
+        fig.add_annotation(
+            x=vapor_x, y=vapor_y,
+            text="<b>Gas</b>",
+            showarrow=False,
+            font=dict(size=16, color="#e07b39"),
+            opacity=0.6,
         )
     if len(res["critical_t"]):
         fig.add_trace(
