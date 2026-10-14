@@ -240,6 +240,26 @@ def adjust_group(raw, key, share):
 # ---------------------------------------------------------------------------
 # UI de Streamlit
 # ---------------------------------------------------------------------------
+def _detect_mobile():
+    """Detecta si la pantalla es móvil usando JavaScript inyectado."""
+    is_mobile = st.components.v1.html(
+        """
+        <script>
+        const isMobile = window.innerWidth < 768;
+        window.parent.postMessage({
+            type: 'streamlit:setComponentValue',
+            value: isMobile
+        }, '*');
+        </script>
+        """,
+        height=0,
+    )
+    # Fallback: si no hay valor del JS, asumir desktop
+    if is_mobile is None:
+        return False
+    return bool(is_mobile)
+
+
 def main():
     st.markdown("# 🌡️ Envolvente de fases interactiva")
     st.markdown(
@@ -264,20 +284,34 @@ def main():
         for g, idxs in GROUP_MAP.items()
     }
 
+    # Detectar tamaño de pantalla
+    is_mobile = _detect_mobile()
+
     # -----------------------------------------------------------------------
-    # Sliders en una fila compacta (3 columnas en desktop, apiladas en móvil)
+    # Sliders (comunes a ambos layouts)
     # -----------------------------------------------------------------------
     st.markdown("### Composición de la mezcla")
-    slider_cols = st.columns(3)
 
-    grp_vals = {}
-    for i, g in enumerate(GROUP_MAP):
-        with slider_cols[i]:
+    if is_mobile:
+        # Móvil: sliders apilados verticalmente
+        grp_vals = {}
+        for g in GROUP_MAP:
             grp_vals[g] = st.slider(
                 f"{g}", 0.0, 100.0, default_shares[g], 0.1,
                 key=f"slider-{g}",
                 help=f"Incluye: {', '.join(em.names[i] for i in GROUP_MAP[g])}",
             )
+    else:
+        # Escritorio: sliders en fila horizontal
+        slider_cols = st.columns(3)
+        grp_vals = {}
+        for i, g in enumerate(GROUP_MAP):
+            with slider_cols[i]:
+                grp_vals[g] = st.slider(
+                    f"{g}", 0.0, 100.0, default_shares[g], 0.1,
+                    key=f"slider-{g}",
+                    help=f"Incluye: {', '.join(em.names[i] for i in GROUP_MAP[g])}",
+                )
 
     if st.button("Restaurar por defecto", use_container_width=True):
         st.session_state.applied_raw = list(em.sliders_default)
@@ -310,18 +344,41 @@ def main():
         st.session_state.pending_raw = None
 
     # -----------------------------------------------------------------------
-    # Gráfica envolvente P-T (usando composición aplicada)
+    # Layout según tamaño de pantalla
     # -----------------------------------------------------------------------
+    # Calcular composición en tiempo real para el gráfico de barras
+    raw_display = list(em.sliders_default)
+    for g in GROUP_MAP:
+        raw_display = adjust_group(raw_display, g, grp_vals[g] / 100.0)
+
+    z_display = em.normalize(raw_display)
+    if z_display is None:
+        z_display = np.zeros(em.nc)
+
+    # Calcular envolvente
     applied = st.session_state.applied_raw
     env = em.compute_envelope(applied)
 
-    if env is None:
-        st.warning(
-            "No fue posible calcular la envolvente para esta composición. "
-            "Prueba con una mezcla más cercana a la defecto."
-        )
+    if is_mobile:
+        # Móvil: diagrama de fases arriba, barras abajo
+        if env is not None:
+            st.plotly_chart(build_env_figure(env), use_container_width=True)
+        else:
+            st.warning("No fue posible calcular la envolvente para esta composición.")
+
+        st.plotly_chart(build_comp_figure(z_display), use_container_width=True)
     else:
-        st.plotly_chart(build_env_figure(env), use_container_width=True)
+        # Escritorio: sliders+barras a la izquierda, diagrama a la derecha
+        col_left, col_right = st.columns([1, 2])
+
+        with col_left:
+            st.plotly_chart(build_comp_figure(z_display), use_container_width=True)
+
+        with col_right:
+            if env is not None:
+                st.plotly_chart(build_env_figure(env), use_container_width=True)
+            else:
+                st.warning("No fue posible calcular la envolvente para esta composición.")
 
 
 if __name__ == "__main__":
