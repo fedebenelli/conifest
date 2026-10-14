@@ -294,22 +294,34 @@ def create_demo():
         all_inputs = ind_sliders + grp_sliders + [reset_btn]
 
         def on_change(*args):
+            """Callback ligero: actualiza solo la composición, no la envolvente."""
             ind_vals = args[:len(ind_sliders)]
             grp_vals = args[len(ind_sliders):len(ind_sliders) + len(grp_sliders)]
-            try:
-                reset_clicked = args[-1] is not None and float(args[-1]) > 0
-            except (TypeError, ValueError):
-                reset_clicked = False
-            return update(ind_vals, grp_vals, reset_clicked)
+            # Actualizar figura de composición (rápida, usa cache de yaeos)
+            comp_fig = build_comp_figure(em.normalize(ind_vals))
+            # No tocar env_plot aquí - se hace con el botón
+            return comp_fig, dash.no_update, dash.no_update
 
         for s in ind_sliders + grp_sliders:
             s.change(
                 fn=on_change,
                 inputs=all_inputs,
-                outputs=[env_plot, comp_plot, status_box] + ind_sliders + grp_sliders,
-                trigger_mode="always_last",
-                show_progress='minimal',
+                outputs=[comp_plot, status_box, env_plot],
             )
+
+        calcular_btn = gr.Button("Aplicar cambios", variant="primary")
+
+        def aplicar_cambios(*args):
+            """Calcula una sola vez la envolvente con los valores actuales."""
+            ind_vals = args[:len(ind_sliders)]
+            grp_vals = args[len(ind_sliders):len(ind_sliders) + len(grp_sliders)]
+            return update(ind_vals, grp_vals, False)
+
+        calcular_btn.click(
+            fn=aplicar_cambios,
+            inputs=all_inputs,
+            outputs=[env_plot, comp_plot, status_box] + ind_sliders + grp_sliders,
+        )
 
         reset_btn.click(
             fn=lambda: update(list(em.sliders_default), None, True),
