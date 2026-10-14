@@ -4,6 +4,7 @@ Gradio + Plotly sobre yaeos (PengRobinson78 + QMR), misma formulación
 que ``script.py`` sin el último componente (C50-C80A), que queda fuera
 del modelo.
 
+from dash import no_update
 Ejecutar localmente::
 
     python app.py
