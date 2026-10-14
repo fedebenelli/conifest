@@ -10,6 +10,8 @@ Ejecutar localmente::
     # -> http://localhost:8501
 """
 
+import time
+
 import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
@@ -18,9 +20,14 @@ import envelope_model as em
 
 st.set_page_config(page_title="Envolvente de fases", page_icon="🌡️", layout="wide")
 
-Z_DEFAULT = em.normalize(em.sliders_default)
-COMP_GROUP = {i: g for g, idxs in em.GROUPS.items() for i in idxs}
-
+# ---------------------------------------------------------------------------
+# Configuración de grupos: Gases (con CO2), Intermedios, Pesados
+# ---------------------------------------------------------------------------
+GROUP_MAP = {
+    "Gases": em.GROUPS["Gases"] + em.GROUPS["CO2"],
+    "Intermedios": em.GROUPS["Intermedios"],
+    "Pesados": em.GROUPS["Pesados"],
+}
 
 # ---------------------------------------------------------------------------
 # Figuras
@@ -92,9 +99,9 @@ def build_comp_figure(z):
     vis = em.VISIBLE
     xs = [em.names[i] for i in vis]
     vals = [100.0 * z[i] for i in vis]
-    defaults = [100.0 * Z_DEFAULT[i] for i in vis]
-    colors = [em.GROUP_COLORS[COMP_GROUP[i]] for i in vis]
-    groups = [COMP_GROUP[i] for i in vis]
+    defaults = [100.0 * em.normalize(em.sliders_default)[i] for i in vis]
+    colors = [em.GROUP_COLORS[em.GROUPS_INV[i]] for i in vis]
+    groups = [em.GROUPS_INV[i] for i in vis]
 
     fig = go.Figure()
     fig.add_trace(
@@ -151,7 +158,8 @@ def _fill_from_defaults(raw, idx, target=None):
 
 
 def adjust_group(raw, key, share):
-    idx = [em.VISIBLE.index(i) for i in em.GROUPS[key]]
+    """Ajusta los componentes del grupo para que su participación sea ``share``."""
+    idx = GROUP_MAP[key]
     share = min(max(share, 0.0), 0.99999)
     group_sum = sum(raw[i] for i in idx)
     others = sum(raw) - group_sum
@@ -175,81 +183,90 @@ def adjust_group(raw, key, share):
 
 
 # ---------------------------------------------------------------------------
-# Streamlit UI
+# UI de Streamlit
 # ---------------------------------------------------------------------------
 def main():
     st.markdown("# 🌡️ Envolvente de fases interactiva")
     st.markdown(
-        "Peng-Robinson 78 + regla QMR · yaeos · ajusta los sliders y pulsa **Aplicar**."
+        "Peng-Robinson 78 + regla QMR · yaeos · "
+        "ajusta los sliders, el cálculo se actualiza al soltar."
     )
 
-    # Estado persistente
-    if "raw" not in st.session_state:
-        st.session_state["raw"] = list(em.sliders_default)
-    if "pending" not in st.session_state:
-        st.session_state["pending"] = list(em.sliders_default)
+    # Mapeo inverso de componente a grupo para colores
+    if not hasattr(em, "GROUPS_INV"):
+        em.GROUPS_INV = {i: g for g, idxs in GROUP_MAP.items() for i in idxs}
 
-    raw = st.session_state["pending"]
+    # Estado inicial
+    if "applied_raw" not in st.session_state:
+        st.session_state.applied_raw = list(em.sliders_default)
+    if "pending_raw" not in st.session_state:
+        st.session_state.pending_raw = list(em.sliders_default)
+    if "last_apply_time" not in st.session_state:
+        st.session_state.last_apply_time = 0.0
 
+    # Valores por defecto de cada grupo
+    default_shares = {
+        g: 100.0 * sum(em.sliders_default[i] for i in idxs) / sum(em.sliders_default)
+        for g, idxs in GROUP_MAP.items()
+    }
+
+    # -----------------------------------------------------------------------
+    # Tres sliders principales
+    # -----------------------------------------------------------------------
     col_sidebar, col_main = st.columns([1, 2])
 
     with col_sidebar:
         st.markdown("### Composición de la mezcla")
 
-        # Sliders de grupo
-        st.markdown("**Participación de grupos (%)**")
         grp_vals = {}
-        for g in em.GROUP_ORDER:
-            share0 = em.group_shares(em.sliders_default)[g]
+        for g in GROUP_MAP:
             grp_vals[g] = st.slider(
-                f"{g}", 0.0, 100.0, share0, 0.1, key=f"grp-{g}"
+                f"{g}", 0.0, 100.0, default_shares[g], 0.1,
+                key=f"slider-{g}",
+                help=f"Incluye: {', '.join(em.names[i] for i in GROUP_MAP[g])}",
             )
 
-        st.markdown("---")
-        st.markdown("### Componentes individuales")
-
-        # Sliders individuales
-        ind_vals = {}
-        for i in em.VISIBLE:
-            ind_vals[em.names[i]] = st.slider(
-                em.names[i], 0.0, 1.0, em.sliders_default[i], 0.0001,
-                key=f"ind-{i}"
-            )
-
-        st.markdown("---")
-
-        # Botones
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            if st.button("Aplicar cambios", type="primary", use_container_width=True):
-                # Leer valores de sliders individuales
-                new_raw = list(em.sliders_default)
-                for i in em.VISIBLE:
-                    new_raw[i] = ind_vals[em.names[i]]
-
-                # Aplicar sliders de grupo
-                for g in em.GROUP_ORDER:
-                    new_raw = adjust_group(new_raw, g, grp_vals[g] / 100.0)
-
-                st.session_state["raw"] = new_raw
-                st.session_state["pending"] = new_raw
-                st.rerun()
-
-        with col_btn2:
-            if st.button("Restaurar por defecto", use_container_width=True):
-                st.session_state["raw"] = list(em.sliders_default)
-                st.session_state["pending"] = list(em.sliders_default)
-                st.rerun()
+        if st.button("Restaurar por defecto", use_container_width=True):
+            st.session_state.applied_raw = list(em.sliders_default)
+            st.session_state.pending_raw = list(em.sliders_default)
+            st.rerun()
 
         # Mostrar figura de composición
-        z_display = em.normalize(raw)
+        z_display = em.normalize(st.session_state.applied_raw)
         if z_display is None:
             z_display = np.zeros(em.nc)
         st.plotly_chart(build_comp_figure(z_display), use_container_width=True)
 
+    # -----------------------------------------------------------------------
+    # Detección de "slider soltado": aplica el cálculo con debounce
+    # -----------------------------------------------------------------------
+    current_shares = tuple(grp_vals[g] for g in GROUP_MAP)
+
+    if "last_shares" not in st.session_state:
+        st.session_state.last_shares = current_shares
+
+    # Si los sliders cambiaron, guardar como pendientes
+    if current_shares != st.session_state.last_shares:
+        st.session_state.last_shares = current_shares
+
+        # Calcular nueva composición desde los sliders de grupo
+        new_raw = list(em.sliders_default)
+        for g in GROUP_MAP:
+            new_raw = adjust_group(new_raw, g, grp_vals[g] / 100.0)
+
+        st.session_state.pending_raw = new_raw
+
+    # Aplicar si hubo cambio (inmediato, sin botón)
+    if st.session_state.pending_raw is not None and \
+       st.session_state.pending_raw != st.session_state.applied_raw:
+        st.session_state.applied_raw = st.session_state.pending_raw
+        st.session_state.pending_raw = None
+
+    # -----------------------------------------------------------------------
+    # Gráfica envolvente P-T (usando composición aplicada)
+    # -----------------------------------------------------------------------
     with col_main:
-        # Usar composición aplicada (o por defecto si no se ha aplicado)
-        applied = st.session_state["raw"]
+        applied = st.session_state.applied_raw
         env = em.compute_envelope(applied)
 
         if env is None:
