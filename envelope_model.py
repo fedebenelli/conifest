@@ -115,24 +115,53 @@ class ModelVariant:
             return None
         return z_sub / total
 
+    def _try_envelope(self, z_sub, kind, t0):
+        """Intenta calcular la envolvente con parámetros dados."""
+        try:
+            env = self.model.phase_envelope_pt(z_sub, kind=kind, t0=t0, p0=1)
+            if env is None or len(env.temperatures) == 0:
+                return None
+            return {
+                "temperatures": np.asarray(env.temperatures, dtype=float),
+                "pressures": np.asarray(env.pressures, dtype=float),
+                "kinds": np.asarray(env.main_phases_kinds),
+                "critical_t": np.asarray(env.critical_temperatures, dtype=float),
+                "critical_p": np.asarray(env.critical_pressures, dtype=float),
+            }
+        except Exception:
+            return None
+
     def compute_envelope(self, z_full):
-        """Calcula la envolvente con este sub-modelo."""
+        """Calcula la envolvente con este sub-modelo.
+
+        Si el cálculo inicial (kind="dew", t0=300) da menos de 10 puntos,
+        prueba con kind="bubble" (t0: 100-300, paso 25) y luego con
+        kind="dew" (t0: 100-1000, paso 25).
+        """
         z_sub = self.extract_z(z_full)
         if z_sub is None or np.count_nonzero(z_sub) < 2:
             return None
-        try:
-            env = self.model.phase_envelope_pt(z_sub, kind="dew", t0=300, p0=1)
-        except Exception:
-            return None
-        if env is None or len(env.temperatures) == 0:
-            return None
-        return {
-            "temperatures": np.asarray(env.temperatures, dtype=float),
-            "pressures": np.asarray(env.pressures, dtype=float),
-            "kinds": np.asarray(env.main_phases_kinds),
-            "critical_t": np.asarray(env.critical_temperatures, dtype=float),
-            "critical_p": np.asarray(env.critical_pressures, dtype=float),
-        }
+
+        # Intento 1: kind="dew", t0=300 (original)
+        result = self._try_envelope(z_sub, "dew", 300)
+        if result is not None and len(result["temperatures"]) >= 10:
+            return result
+
+        # Intento 2: kind="bubble", t0 entre 100 y 300 (paso 25)
+        for t0 in range(100, 301, 25):
+            result = self._try_envelope(z_sub, "bubble", t0)
+            if result is not None and len(result["temperatures"]) >= 10:
+                return result
+
+        # Intento 3: kind="dew", t0 entre 100 y 1000 (paso 25)
+        for t0 in range(100, 1001, 25):
+            result = self._try_envelope(z_sub, "dew", t0)
+            if result is not None and len(result["temperatures"]) >= 10:
+                return result
+
+        # Si nada funcionó, devolver el último resultado (aunque sea < 10 puntos)
+        # o None si nunca se pudo calcular
+        return result if result is not None else None
 
 
 # Crear variantes para todas las combinaciones posibles (2^3 - 1 = 7)
