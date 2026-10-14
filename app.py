@@ -75,11 +75,23 @@ def build_env_figure(res):
 
         # Calcular posición de anotación de región
         if kind == "liquid":
-            leftmost = min(valid, key=lambda p: p[0])
-            x_left = min(leftmost[0] - 50, 400)
-            y_top = leftmost[1] * 1.5
-            liquid_x = max(210, x_left)
-            liquid_y = min(340, y_top)
+            # Regla 1: presión más alta de la línea de burbuja + 10 bar
+            max_p_point = max(valid, key=lambda p: p[1])
+            y_liq = max_p_point[1] + 10
+
+            # Regla 2: temperatura del punto crítico - 80 K, o máximo T de la curva
+            if len(res.get("critical_t", [])) > 0:
+                x_liq = float(res["critical_t"][0]) - 80
+            else:
+                x_liq = max(valid, key=lambda p: p[0])[0] - 80
+
+            # Regla 3: si presiones extremadamente altas (>1000), arriba a la derecha
+            if max_p_point[1] > 1000:
+                liquid_x = max(valid, key=lambda p: p[0])[0] + 30
+                liquid_y = 330
+            else:
+                liquid_x = max(210, x_liq)
+                liquid_y = min(340, y_liq)
         else:
             rightmost = max(valid, key=lambda p: p[0])
             x_right = rightmost[0] + 50
