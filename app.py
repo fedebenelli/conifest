@@ -35,15 +35,37 @@ GROUP_MAP = {
 def build_env_figure(res):
     """P [bar] vs T [K] con ramas líquido/vapor y punto crítico."""
     fig = go.Figure()
-    labels = {"liquid": "Líquido", "vapor": "Vapor"}
+    labels = {"liquid": "Burbuja", "vapor": "Rocío"}
     colors = {"liquid": "#1f6fb2", "vapor": "#e07b39"}
     t, p, kinds = res["temperatures"], res["pressures"], res["kinds"]
+
     for kind in ("liquid", "vapor"):
         mask = kinds == kind
         if not mask.any():
             continue
         xs = [float(a) if m else None for a, m in zip(t, mask)]
         ys = [float(a) if m else None for a, m in zip(p, mask)]
+
+        # Añadir anotaciones de región antes de las trazas (para que queden debajo)
+        if kind == "liquid":
+            # Etiqueta "Líquido" sobre la curva de burbuja (región de líquido)
+            fig.add_annotation(
+                x=280, y=220,
+                text="<b>Líquido</b>",
+                showarrow=False,
+                font=dict(size=16, color="#1f6fb2"),
+                opacity=0.6,
+            )
+        else:
+            # Etiqueta "Gas" a la derecha de la curva de rocío (región de gas)
+            fig.add_annotation(
+                x=750, y=200,
+                text="<b>Gas</b>",
+                showarrow=False,
+                font=dict(size=16, color="#e07b39"),
+                opacity=0.6,
+            )
+
         fig.add_trace(
             go.Scatter(
                 x=xs, y=ys, mode="lines",
