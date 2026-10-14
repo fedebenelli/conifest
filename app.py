@@ -298,7 +298,7 @@ def create_demo():
             # Actualizar figura de composición (rápida, usa cache de yaeos)
             comp_fig = build_comp_figure(em.normalize(ind_vals))
             # No tocar env_plot aquí - se hace con el botón
-            return comp_fig, dash.no_update, dash.no_update
+            return comp_fig, no_update, no_update
 
         for s in ind_sliders + grp_sliders:
             s.change(
