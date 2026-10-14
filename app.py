@@ -252,7 +252,7 @@ def create_demo():
 
                 gr.Markdown("**Barra negra** = composición por defecto del script.")
 
-                # Sliders de grupo (continuous=False: solo calcula al soltar)
+                # Sliders de grupo
                 grp_sliders = []
                 for g in em.GROUP_ORDER:
                     share0 = em.group_shares(em.sliders_default)[g]
@@ -260,21 +260,19 @@ def create_demo():
                         minimum=0, maximum=100, value=share0, step=0.1,
                         label=f"{g} — participación en la mezcla (%)",
                         info=f"Slider maestro del grupo {g}",
-                        continuous=False,
                     )
                     grp_sliders.append(s)
 
                 gr.Markdown("---")
                 gr.Markdown("### Componentes individuales")
 
-                # Sliders individuales (continuous=False: solo calcula al soltar)
+                # Sliders individuales
                 ind_sliders = []
                 for i in em.VISIBLE:
                     s = gr.Slider(
                         minimum=0, maximum=1, value=em.sliders_default[i], step=0.0001,
                         label=em.names[i],
                         info=f"{COMP_GROUP[i]} — fracción molar",
-                        continuous=False,
                     )
                     ind_sliders.append(s)
 
