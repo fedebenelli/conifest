@@ -1,4 +1,4 @@
-gradio>=5.0
+streamlit>=1.30
 plotly>=6.0
 numpy>=1.26
 yaeos>=4.5.4

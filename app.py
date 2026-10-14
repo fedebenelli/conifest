@@ -1,28 +1,25 @@
 """Webapp interactiva: envolvente de fases P-T según composición.
 
-Gradio + Plotly sobre yaeos (PengRobinson78 + QMR), misma formulación
+Streamlit + Plotly sobre yaeos (PengRobinson78 + QMR), misma formulación
 que ``script.py`` sin el último componente (C50-C80A), que queda fuera
 del modelo.
 
-from dash import no_update
 Ejecutar localmente::
 
-    python app.py
-    # -> http://localhost:7860
+    streamlit run app.py
+    # -> http://localhost:8501
 """
 
 import numpy as np
 import plotly.graph_objects as go
-import gradio as gr
+import streamlit as st
 
 import envelope_model as em
 
-# ---------------------------------------------------------------------------
-# Derivados de la composición por defecto
-# ---------------------------------------------------------------------------
+st.set_page_config(page_title="Envolvente de fases", page_icon="🌡️", layout="wide")
+
 Z_DEFAULT = em.normalize(em.sliders_default)
 COMP_GROUP = {i: g for g, idxs in em.GROUPS.items() for i in idxs}
-GROUP_SLUG = {g: g.lower() for g in em.GROUP_ORDER}
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +139,6 @@ def build_comp_figure(z):
 # Lógica de composición
 # ---------------------------------------------------------------------------
 def _fill_from_defaults(raw, idx, target=None):
-    """Reparte valores dentro de ``idx`` proporcionalmente a los defecto."""
     dsum = sum(em.sliders_default[i] for i in idx)
     if dsum > 0:
         base = target if target is not None else dsum
@@ -155,7 +151,6 @@ def _fill_from_defaults(raw, idx, target=None):
 
 
 def adjust_group(raw, key, share):
-    """Ajusta los individuales del grupo para que su participación sea ``share`` (0-1)."""
     idx = [em.VISIBLE.index(i) for i in em.GROUPS[key]]
     share = min(max(share, 0.0), 0.99999)
     group_sum = sum(raw[i] for i in idx)
@@ -180,159 +175,91 @@ def adjust_group(raw, key, share):
 
 
 # ---------------------------------------------------------------------------
-# Callback principal
+# Streamlit UI
 # ---------------------------------------------------------------------------
-def update(ind_vals, grp_vals, reset_clicked):
-    """Recibe todos los valores de sliders y devuelve figuras + nuevos valores."""
-    raw = [
-        float(v) if v is not None else d
-        for v, d in zip(ind_vals, em.sliders_default)
-    ]
+def main():
+    st.markdown("# 🌡️ Envolvente de fases interactiva")
+    st.markdown(
+        "Peng-Robinson 78 + regla QMR · yaeos · ajusta los sliders y pulsa **Aplicar**."
+    )
 
-    # Si se pulsó reset, restaurar defaults
-    if reset_clicked:
-        raw = list(em.sliders_default)
-    else:
-        # Aplicar sliders de grupo
-        for i, g in enumerate(em.GROUP_ORDER):
-            if grp_vals[i] is not None:
-                raw = adjust_group(raw, g, float(grp_vals[i]) / 100.0)
+    # Estado persistente
+    if "raw" not in st.session_state:
+        st.session_state["raw"] = list(em.sliders_default)
+    if "pending" not in st.session_state:
+        st.session_state["pending"] = list(em.sliders_default)
 
-    shares = em.group_shares(raw)
-    z = em.normalize(raw)
-    if z is None:
-        z = np.zeros(em.nc)
+    raw = st.session_state["pending"]
 
-    env = em.compute_envelope(raw)
-    if env is None:
-        env_fig = go.Figure()
-        env_fig.add_annotation(
-            text="No fue posible calcular la envolvente para esta composición.<br>"
-                 "Prueba con una mezcla más cercana a la defecto o con menos componentes en cero.",
-            xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False,
-            font=dict(size=14, color="#b45309"),
-        )
-        env_fig.update_layout(
-            template="plotly_white",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            xaxis=dict(visible=False), yaxis=dict(visible=False),
-            margin=dict(l=20, r=20, t=20, b=20),
-        )
-        status = "⚠️ Composición inválida"
-    else:
-        env_fig = build_env_figure(env)
-        status = None
+    col_sidebar, col_main = st.columns([1, 2])
 
-    comp_fig = build_comp_figure(z)
+    with col_sidebar:
+        st.markdown("### Composición de la mezcla")
 
-    # Nuevos valores para sliders individuales y de grupo
-    new_ind = list(raw)
-    new_grp = [shares[g] for g in em.GROUP_ORDER]
-
-    # Retornar aplanado: 2 figs + status + 14 individuales + 4 grupo = 21
-    return env_fig, comp_fig, status, *new_ind, *new_grp
-
-
-# ---------------------------------------------------------------------------
-# Layout Gradio
-# ---------------------------------------------------------------------------
-def create_demo():
-    with gr.Blocks(title="Envolvente de fases") as demo:
-        gr.Markdown(
-            "# 🌡️ Envolvente de fases interactiva\n"
-            "Peng-Robinson 78 + regla QMR · yaeos · arrastra los sliders "
-            "y observa cómo cambia la envolvente P-T."
-        )
-
-        with gr.Row():
-            # ---------------- Sidebar: composición ----------------
-            with gr.Column(scale=1, min_width=300):
-                gr.Markdown("### Composición de la mezcla")
-                comp_plot = gr.Plot(value=build_comp_figure(Z_DEFAULT), label="Composición")
-
-                gr.Markdown("**Barra negra** = composición por defecto del script.")
-
-                # Sliders de grupo
-                grp_sliders = []
-                for g in em.GROUP_ORDER:
-                    share0 = em.group_shares(em.sliders_default)[g]
-                    s = gr.Slider(
-                        minimum=0, maximum=100, value=share0, step=0.1,
-                        label=f"{g} — participación en la mezcla (%)",
-                        info=f"Slider maestro del grupo {g}",
-                    )
-                    grp_sliders.append(s)
-
-                gr.Markdown("---")
-                gr.Markdown("### Componentes individuales")
-
-                # Sliders individuales
-                ind_sliders = []
-                for i in em.VISIBLE:
-                    s = gr.Slider(
-                        minimum=0, maximum=1, value=em.sliders_default[i], step=0.0001,
-                        label=em.names[i],
-                        info=f"{COMP_GROUP[i]} — fracción molar",
-                    )
-                    ind_sliders.append(s)
-
-                reset_btn = gr.Button("Restaurar composición por defecto", variant="secondary")
-
-            # ---------------- Gráfica envolvente ----------------
-            with gr.Column(scale=2, min_width=500):
-                status_box = gr.Textbox(label="Estado", visible=False, interactive=False)
-                env_plot = gr.Plot(
-                    value=build_env_figure(em.compute_envelope(em.sliders_default)),
-                    label="Envolvente P-T",
-                )
-
-        # -------------------------------------------------------------------
-        # Conectar callbacks
-        # -------------------------------------------------------------------
-        all_inputs = ind_sliders + grp_sliders + [reset_btn]
-
-        def on_change(*args):
-            """Callback ligero: actualiza solo la composición, no la envolvente."""
-            ind_vals = args[:len(ind_sliders)]
-            grp_vals = args[len(ind_sliders):len(ind_sliders) + len(grp_sliders)]
-            # Actualizar figura de composición (rápida, usa cache de yaeos)
-            comp_fig = build_comp_figure(em.normalize(ind_vals))
-            # No tocar env_plot aquí - se hace con el botón
-            return comp_fig, no_update, no_update
-
-        for s in ind_sliders + grp_sliders:
-            s.change(
-                fn=on_change,
-                inputs=all_inputs,
-                outputs=[comp_plot, status_box, env_plot],
+        # Sliders de grupo
+        st.markdown("**Participación de grupos (%)**")
+        grp_vals = {}
+        for g in em.GROUP_ORDER:
+            share0 = em.group_shares(em.sliders_default)[g]
+            grp_vals[g] = st.slider(
+                f"{g}", 0.0, 100.0, share0, 0.1, key=f"grp-{g}"
             )
 
-        calcular_btn = gr.Button("Aplicar cambios", variant="primary")
+        st.markdown("---")
+        st.markdown("### Componentes individuales")
 
-        def aplicar_cambios(*args):
-            """Calcula una sola vez la envolvente con los valores actuales."""
-            ind_vals = args[:len(ind_sliders)]
-            grp_vals = args[len(ind_sliders):len(ind_sliders) + len(grp_sliders)]
-            return update(ind_vals, grp_vals, False)
+        # Sliders individuales
+        ind_vals = {}
+        for i in em.VISIBLE:
+            ind_vals[em.names[i]] = st.slider(
+                em.names[i], 0.0, 1.0, em.sliders_default[i], 0.0001,
+                key=f"ind-{i}"
+            )
 
-        calcular_btn.click(
-            fn=aplicar_cambios,
-            inputs=all_inputs,
-            outputs=[env_plot, comp_plot, status_box] + ind_sliders + grp_sliders,
-        )
+        st.markdown("---")
 
-        reset_btn.click(
-            fn=lambda: update(list(em.sliders_default), None, True),
-            inputs=None,
-            outputs=[env_plot, comp_plot, status_box] + ind_sliders + grp_sliders,
-        )
+        # Botones
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("Aplicar cambios", type="primary", use_container_width=True):
+                # Leer valores de sliders individuales
+                new_raw = list(em.sliders_default)
+                for i in em.VISIBLE:
+                    new_raw[i] = ind_vals[em.names[i]]
 
-    return demo
+                # Aplicar sliders de grupo
+                for g in em.GROUP_ORDER:
+                    new_raw = adjust_group(new_raw, g, grp_vals[g] / 100.0)
+
+                st.session_state["raw"] = new_raw
+                st.session_state["pending"] = new_raw
+                st.rerun()
+
+        with col_btn2:
+            if st.button("Restaurar por defecto", use_container_width=True):
+                st.session_state["raw"] = list(em.sliders_default)
+                st.session_state["pending"] = list(em.sliders_default)
+                st.rerun()
+
+        # Mostrar figura de composición
+        z_display = em.normalize(raw)
+        if z_display is None:
+            z_display = np.zeros(em.nc)
+        st.plotly_chart(build_comp_figure(z_display), use_container_width=True)
+
+    with col_main:
+        # Usar composición aplicada (o por defecto si no se ha aplicado)
+        applied = st.session_state["raw"]
+        env = em.compute_envelope(applied)
+
+        if env is None:
+            st.warning(
+                "No fue posible calcular la envolvente para esta composición. "
+                "Prueba con una mezcla más cercana a la defecto."
+            )
+        else:
+            st.plotly_chart(build_env_figure(env), use_container_width=True)
 
 
 if __name__ == "__main__":
-    import os
-    demo = create_demo()
-    port = int(os.environ.get("PORT", 7860))
-    demo.launch(server_name="0.0.0.0", server_port=port, theme=gr.themes.Soft())
+    main()
