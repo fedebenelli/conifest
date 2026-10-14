@@ -229,7 +229,8 @@ def update(ind_vals, grp_vals, reset_clicked):
     new_ind = list(raw)
     new_grp = [shares[g] for g in em.GROUP_ORDER]
 
-    return env_fig, comp_fig, status, new_ind, new_grp
+    # Retornar aplanado: 2 figs + status + 14 individuales + 4 grupo = 21
+    return env_fig, comp_fig, status, *new_ind, *new_grp
 
 
 # ---------------------------------------------------------------------------
