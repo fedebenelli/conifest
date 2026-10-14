@@ -305,7 +305,7 @@ def create_demo():
                 fn=on_change,
                 inputs=all_inputs,
                 outputs=[env_plot, comp_plot, status_box] + ind_sliders + grp_sliders,
-                trigger_mode="always_last",
+                show_progress='minimal',
             )
 
         reset_btn.click(
@@ -321,4 +321,4 @@ if __name__ == "__main__":
     import os
     demo = create_demo()
     port = int(os.environ.get("PORT", 7860))
-    demo.launch(server_name="0.0.0.0", server_port=port, theme=gr.themes.Soft())
+    demo.launch(server_name="0.0.0.0", server_port=port, theme=gr.themes.Soft(), concurrency_limit=5)
