@@ -236,7 +236,7 @@ def update(ind_vals, grp_vals, reset_clicked):
 # Layout Gradio
 # ---------------------------------------------------------------------------
 def create_demo():
-    with gr.Blocks(title="Envolvente de fases", theme=gr.themes.Soft()) as demo:
+    with gr.Blocks(title="Envolvente de fases") as demo:
         gr.Markdown(
             "# 🌡️ Envolvente de fases interactiva\n"
             "Peng-Robinson 78 + regla QMR · yaeos · arrastra los sliders "
@@ -319,4 +319,4 @@ if __name__ == "__main__":
     import os
     demo = create_demo()
     port = int(os.environ.get("PORT", 7860))
-    demo.launch(server_name="0.0.0.0", server_port=port)
+    demo.launch(server_name="0.0.0.0", server_port=port, theme=gr.themes.Soft())
