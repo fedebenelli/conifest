@@ -46,20 +46,32 @@ def build_env_figure(res):
         xs = [float(a) if m else None for a, m in zip(t, mask)]
         ys = [float(a) if m else None for a, m in zip(p, mask)]
 
-        # Añadir anotaciones de región antes de las trazas (para que queden debajo)
-        if kind == "liquid":
-            # Etiqueta "Líquido" sobre la curva de burbuja (región de líquido)
+        # Añadir anotaciones de región de forma dinámica
+        if kind == "liquid" and len(xs) > 0:
+            # Punto medio de la curva de burbuja (líquido)
+            mid_idx = len(xs) // 2
+            x_mid = xs[mid_idx] if xs[mid_idx] is not None else 300
+            y_mid = ys[mid_idx] if ys[mid_idx] is not None else 150
+            # Desplazar hacia la región de líquido (izquierda y arriba)
+            x_liq = max(200, x_mid * 0.5)
+            y_liq = min(350, y_mid * 1.8)
             fig.add_annotation(
-                x=280, y=220,
+                x=x_liq, y=y_liq,
                 text="<b>Líquido</b>",
                 showarrow=False,
                 font=dict(size=16, color="#1f6fb2"),
                 opacity=0.6,
             )
-        else:
-            # Etiqueta "Gas" a la derecha de la curva de rocío (región de gas)
+        elif kind == "vapor" and len(xs) > 0:
+            # Punto medio de la curva de rocío (gas)
+            mid_idx = len(xs) // 2
+            x_mid = xs[mid_idx] if xs[mid_idx] is not None else 500
+            y_mid = ys[mid_idx] if ys[mid_idx] is not None else 100
+            # Desplazar hacia la región de gas (derecha y abajo)
+            x_gas = min(900, x_mid * 1.3)
+            y_gas = max(0, y_mid * 0.3)
             fig.add_annotation(
-                x=750, y=200,
+                x=x_gas, y=y_gas,
                 text="<b>Gas</b>",
                 showarrow=False,
                 font=dict(size=16, color="#e07b39"),
