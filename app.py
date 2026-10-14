@@ -356,24 +356,19 @@ def main():
     applied = st.session_state.applied_raw
     env = em.compute_envelope(applied)
 
-    # Contenedor principal
-    st.markdown('<div class="app-container">', unsafe_allow_html=True)
+    # Layout: diagrama izquierda (2/3), controles derecha (1/3)
+    # En móvil se apilan: diagrama arriba, controles abajo
+    col_diagram, col_controls = st.columns([2, 1])
 
-    # Sección de sliders + barras (izquierda en desktop, abajo en móvil)
-    st.markdown('<div class="sliders-section">', unsafe_allow_html=True)
-    st.markdown("#### Composición")
-    st.plotly_chart(build_comp_figure(z_display), use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    with col_diagram:
+        if env is not None:
+            st.plotly_chart(build_env_figure(env), use_container_width=True)
+        else:
+            st.warning("No fue posible calcular la envolvente para esta composición.")
 
-    # Sección del diagrama de fases (derecha en desktop, arriba en móvil)
-    st.markdown('<div class="diagram-section">', unsafe_allow_html=True)
-    if env is not None:
-        st.plotly_chart(build_env_figure(env), use_container_width=True)
-    else:
-        st.warning("No fue posible calcular la envolvente para esta composición.")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)
+    with col_controls:
+        st.markdown("#### Composición")
+        st.plotly_chart(build_comp_figure(z_display), use_container_width=True)
 
 
 if __name__ == "__main__":
