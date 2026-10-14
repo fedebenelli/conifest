@@ -240,27 +240,38 @@ def adjust_group(raw, key, share):
 # ---------------------------------------------------------------------------
 # UI de Streamlit
 # ---------------------------------------------------------------------------
-def _detect_mobile():
-    """Detecta si la pantalla es móvil usando JavaScript inyectado."""
-    is_mobile = st.components.v1.html(
-        """
-        <script>
-        const isMobile = window.innerWidth < 768;
-        window.parent.postMessage({
-            type: 'streamlit:setComponentValue',
-            value: isMobile
-        }, '*');
-        </script>
-        """,
-        height=0,
-    )
-    # Fallback: si no hay valor del JS, asumir desktop
-    if is_mobile is None:
-        return False
-    return bool(is_mobile)
-
-
 def main():
+    # CSS para layout responsive
+    st.markdown("""
+    <style>
+    .app-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .sliders-section {
+        flex: 1;
+        min-width: 300px;
+    }
+    .diagram-section {
+        flex: 2;
+        min-width: 400px;
+    }
+    @media (max-width: 768px) {
+        .app-container {
+            flex-direction: column;
+        }
+        .sliders-section, .diagram-section {
+            width: 100%;
+            min-width: unset;
+        }
+        .diagram-section {
+            order: -1;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.markdown("# 🌡️ Envolvente de fases interactiva")
     st.markdown(
         "Peng-Robinson 78 + regla QMR · yaeos · "
@@ -284,34 +295,20 @@ def main():
         for g, idxs in GROUP_MAP.items()
     }
 
-    # Detectar tamaño de pantalla
-    is_mobile = _detect_mobile()
-
     # -----------------------------------------------------------------------
-    # Sliders (comunes a ambos layouts)
+    # Sliders
     # -----------------------------------------------------------------------
     st.markdown("### Composición de la mezcla")
+    slider_cols = st.columns(3)
 
-    if is_mobile:
-        # Móvil: sliders apilados verticalmente
-        grp_vals = {}
-        for g in GROUP_MAP:
+    grp_vals = {}
+    for i, g in enumerate(GROUP_MAP):
+        with slider_cols[i]:
             grp_vals[g] = st.slider(
                 f"{g}", 0.0, 100.0, default_shares[g], 0.1,
                 key=f"slider-{g}",
                 help=f"Incluye: {', '.join(em.names[i] for i in GROUP_MAP[g])}",
             )
-    else:
-        # Escritorio: sliders en fila horizontal
-        slider_cols = st.columns(3)
-        grp_vals = {}
-        for i, g in enumerate(GROUP_MAP):
-            with slider_cols[i]:
-                grp_vals[g] = st.slider(
-                    f"{g}", 0.0, 100.0, default_shares[g], 0.1,
-                    key=f"slider-{g}",
-                    help=f"Incluye: {', '.join(em.names[i] for i in GROUP_MAP[g])}",
-                )
 
     if st.button("Restaurar por defecto", use_container_width=True):
         st.session_state.applied_raw = list(em.sliders_default)
@@ -344,7 +341,7 @@ def main():
         st.session_state.pending_raw = None
 
     # -----------------------------------------------------------------------
-    # Layout según tamaño de pantalla
+    # Layout con contenedores CSS
     # -----------------------------------------------------------------------
     # Calcular composición en tiempo real para el gráfico de barras
     raw_display = list(em.sliders_default)
@@ -359,26 +356,24 @@ def main():
     applied = st.session_state.applied_raw
     env = em.compute_envelope(applied)
 
-    if is_mobile:
-        # Móvil: diagrama de fases arriba, barras abajo
-        if env is not None:
-            st.plotly_chart(build_env_figure(env), use_container_width=True)
-        else:
-            st.warning("No fue posible calcular la envolvente para esta composición.")
+    # Contenedor principal
+    st.markdown('<div class="app-container">', unsafe_allow_html=True)
 
-        st.plotly_chart(build_comp_figure(z_display), use_container_width=True)
+    # Sección de sliders + barras (izquierda en desktop, abajo en móvil)
+    st.markdown('<div class="sliders-section">', unsafe_allow_html=True)
+    st.markdown("#### Composición")
+    st.plotly_chart(build_comp_figure(z_display), use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Sección del diagrama de fases (derecha en desktop, arriba en móvil)
+    st.markdown('<div class="diagram-section">', unsafe_allow_html=True)
+    if env is not None:
+        st.plotly_chart(build_env_figure(env), use_container_width=True)
     else:
-        # Escritorio: sliders+barras a la izquierda, diagrama a la derecha
-        col_left, col_right = st.columns([1, 2])
+        st.warning("No fue posible calcular la envolvente para esta composición.")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-        with col_left:
-            st.plotly_chart(build_comp_figure(z_display), use_container_width=True)
-
-        with col_right:
-            if env is not None:
-                st.plotly_chart(build_env_figure(env), use_container_width=True)
-            else:
-                st.warning("No fue posible calcular la envolvente para esta composición.")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
