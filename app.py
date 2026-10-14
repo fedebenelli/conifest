@@ -39,44 +39,55 @@ def build_env_figure(res):
     colors = {"liquid": "#1f6fb2", "vapor": "#e07b39"}
     t, p, kinds = res["temperatures"], res["pressures"], res["kinds"]
 
+    # Posiciones dinámicas de las etiquetas de región
+    liquid_x, liquid_y = None, None
+    vapor_x, vapor_y = None, None
+
     for kind in ("liquid", "vapor"):
         mask = kinds == kind
         if not mask.any():
             continue
         xs = [float(a) if m else None for a, m in zip(t, mask)]
         ys = [float(a) if m else None for a, m in zip(p, mask)]
+        valid = [(x, y) for x, y in zip(xs, ys) if x is not None and y is not None]
 
-        # Añadir anotaciones de región de forma dinámica
-        if kind == "liquid" and len(xs) > 0:
-            # Punto medio de la curva de burbuja (líquido)
-            mid_idx = len(xs) // 2
-            x_mid = xs[mid_idx] if xs[mid_idx] is not None else 300
-            y_mid = ys[mid_idx] if ys[mid_idx] is not None else 150
-            # Desplazar hacia la región de líquido (izquierda y arriba)
-            x_liq = max(200, x_mid * 0.5)
-            y_liq = min(350, y_mid * 1.8)
-            fig.add_annotation(
-                x=x_liq, y=y_liq,
-                text="<b>Líquido</b>",
-                showarrow=False,
-                font=dict(size=16, color="#1f6fb2"),
-                opacity=0.6,
-            )
-        elif kind == "vapor" and len(xs) > 0:
-            # Punto medio de la curva de rocío (gas)
-            mid_idx = len(xs) // 2
-            x_mid = xs[mid_idx] if xs[mid_idx] is not None else 500
-            y_mid = ys[mid_idx] if ys[mid_idx] is not None else 100
-            # Desplazar hacia la región de gas (derecha y abajo)
-            x_gas = min(900, x_mid * 1.3)
-            y_gas = max(0, y_mid * 0.3)
-            fig.add_annotation(
-                x=x_gas, y=y_gas,
-                text="<b>Gas</b>",
-                showarrow=False,
-                font=dict(size=16, color="#e07b39"),
-                opacity=0.6,
-            )
+        if not valid:
+            continue
+
+        if kind == "liquid":
+            # Punto más a la izquierda de la curva de burbuja
+            leftmost = min(valid, key=lambda p: p[0])
+            # Etiqueta "Líquido" a la izquierda y arriba de ese punto
+            x_left = min(leftmost[0] - 50, 400)
+            y_top = leftmost[1] * 1.5
+            liquid_x = max(210, x_left)
+            liquid_y = min(340, y_top)
+        else:
+            # Punto más a la derecha de la curva de rocío
+            rightmost = max(valid, key=lambda p: p[0])
+            # Etiqueta "Gas" a la derecha y abajo de ese punto
+            x_right = rightmost[0] + 50
+            y_bottom = rightmost[1] * 0.3
+            vapor_x = min(890, x_right)
+            vapor_y = max(10, y_bottom)
+
+    # Añadir las anotaciones después de calcular ambas posiciones
+    if liquid_x is not None and liquid_y is not None:
+        fig.add_annotation(
+            x=liquid_x, y=liquid_y,
+            text="<b>Líquido</b>",
+            showarrow=False,
+            font=dict(size=16, color="#1f6fb2"),
+            opacity=0.6,
+        )
+    if vapor_x is not None and vapor_y is not None:
+        fig.add_annotation(
+            x=vapor_x, y=vapor_y,
+            text="<b>Gas</b>",
+            showarrow=False,
+            font=dict(size=16, color="#e07b39"),
+            opacity=0.6,
+        )
 
         fig.add_trace(
             go.Scatter(
