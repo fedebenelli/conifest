@@ -307,6 +307,7 @@ def create_demo():
                 fn=on_change,
                 inputs=all_inputs,
                 outputs=[env_plot, comp_plot, status_box] + ind_sliders + grp_sliders,
+                trigger_mode="always_last",
                 show_progress='minimal',
             )
 
