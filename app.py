@@ -296,24 +296,56 @@ def main():
     }
 
     # -----------------------------------------------------------------------
-    # Sliders
+    # Layout: diagrama izquierda (2/3), controles derecha (1/3)
+    # En móvil se apilan: diagrama arriba, controles abajo
     # -----------------------------------------------------------------------
-    st.markdown("### Composición de la mezcla")
-    slider_cols = st.columns(3)
+    # Inicializar grp_vals si no existe (necesario para el cálculo posterior)
+    if "grp_vals_cache" not in st.session_state:
+        st.session_state.grp_vals_cache = {g: default_shares[g] for g in GROUP_MAP}
 
-    grp_vals = {}
-    for i, g in enumerate(GROUP_MAP):
-        with slider_cols[i]:
+    grp_vals = st.session_state.grp_vals_cache
+
+    col_diagram, col_controls = st.columns([2, 1])
+
+    with col_diagram:
+        # Calcular envolvente
+        applied = st.session_state.applied_raw
+        env = em.compute_envelope(applied)
+
+        if env is not None:
+            st.plotly_chart(build_env_figure(env), use_container_width=True)
+        else:
+            st.warning("No fue posible calcular la envolvente para esta composición.")
+
+    with col_controls:
+        st.markdown("### Composición de la mezcla")
+
+        for g in GROUP_MAP:
             grp_vals[g] = st.slider(
-                f"{g}", 0.0, 100.0, default_shares[g], 0.1,
+                f"{g}", 0.0, 100.0, grp_vals[g], 0.1,
                 key=f"slider-{g}",
                 help=f"Incluye: {', '.join(em.names[i] for i in GROUP_MAP[g])}",
             )
 
-    if st.button("Restaurar por defecto", use_container_width=True):
-        st.session_state.applied_raw = list(em.sliders_default)
-        st.session_state.pending_raw = list(em.sliders_default)
-        st.rerun()
+        st.session_state.grp_vals_cache = dict(grp_vals)
+
+        if st.button("Restaurar por defecto", use_container_width=True):
+            st.session_state.applied_raw = list(em.sliders_default)
+            st.session_state.pending_raw = list(em.sliders_default)
+            st.session_state.grp_vals_cache = {g: default_shares[g] for g in GROUP_MAP}
+            st.rerun()
+
+        # Calcular composición en tiempo real para el gráfico de barras
+        raw_display = list(em.sliders_default)
+        for g in GROUP_MAP:
+            raw_display = adjust_group(raw_display, g, grp_vals[g] / 100.0)
+
+        z_display = em.normalize(raw_display)
+        if z_display is None:
+            z_display = np.zeros(em.nc)
+
+        st.markdown("#### Composición")
+        st.plotly_chart(build_comp_figure(z_display), use_container_width=True)
 
     # -----------------------------------------------------------------------
     # Detección de "slider soltado": aplica el cálculo con debounce
@@ -339,36 +371,6 @@ def main():
        st.session_state.pending_raw != st.session_state.applied_raw:
         st.session_state.applied_raw = st.session_state.pending_raw
         st.session_state.pending_raw = None
-
-    # -----------------------------------------------------------------------
-    # Layout con contenedores CSS
-    # -----------------------------------------------------------------------
-    # Calcular composición en tiempo real para el gráfico de barras
-    raw_display = list(em.sliders_default)
-    for g in GROUP_MAP:
-        raw_display = adjust_group(raw_display, g, grp_vals[g] / 100.0)
-
-    z_display = em.normalize(raw_display)
-    if z_display is None:
-        z_display = np.zeros(em.nc)
-
-    # Calcular envolvente
-    applied = st.session_state.applied_raw
-    env = em.compute_envelope(applied)
-
-    # Layout: diagrama izquierda (2/3), controles derecha (1/3)
-    # En móvil se apilan: diagrama arriba, controles abajo
-    col_diagram, col_controls = st.columns([2, 1])
-
-    with col_diagram:
-        if env is not None:
-            st.plotly_chart(build_env_figure(env), use_container_width=True)
-        else:
-            st.warning("No fue posible calcular la envolvente para esta composición.")
-
-    with col_controls:
-        st.markdown("#### Composición")
-        st.plotly_chart(build_comp_figure(z_display), use_container_width=True)
 
 
 if __name__ == "__main__":
