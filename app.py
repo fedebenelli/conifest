@@ -21,13 +21,15 @@ import envelope_model as em
 st.set_page_config(page_title="Envolvente de fases", page_icon="🌡️", layout="wide")
 
 # ---------------------------------------------------------------------------
-# Configuración de grupos: Gases (con CO2), Intermedios, Pesados
+# Configuración de grupos: solo Intermedios y Pesados (gases siempre presentes)
 # ---------------------------------------------------------------------------
 GROUP_MAP = {
-    "Gases": em.GROUPS["Gases"],
     "Intermedios": em.GROUPS["Intermedios"],
     "Pesados": em.GROUPS["Pesados"],
 }
+
+# Los gases siempre están presentes con su composición por defecto
+GAS_INDICES = em.GROUPS["Gases"]
 
 # ---------------------------------------------------------------------------
 # Figuras
@@ -281,11 +283,15 @@ def main():
     # Mapeo inverso de componente a grupo para colores
     GROUPS_INV = em.GROUPS_INV
 
-    # Estado inicial
+    # Estado inicial: solo gases (Intermedios=0, Pesados=0)
     if "applied_raw" not in st.session_state:
-        st.session_state.applied_raw = list(em.sliders_default)
+        zero_raw = list(em.sliders_default)
+        for g in ["Intermedios", "Pesados"]:
+            for i in em.GROUPS[g]:
+                zero_raw[i] = 0.0
+        st.session_state.applied_raw = zero_raw
     if "pending_raw" not in st.session_state:
-        st.session_state.pending_raw = list(em.sliders_default)
+        st.session_state.pending_raw = list(st.session_state.applied_raw)
     if "last_apply_time" not in st.session_state:
         st.session_state.last_apply_time = 0.0
 
@@ -299,9 +305,10 @@ def main():
     # Layout: diagrama izquierda (2/3), controles derecha (1/3)
     # En móvil se apilan: diagrama arriba, controles abajo
     # -----------------------------------------------------------------------
-    # Inicializar grp_vals si no existe (necesario para el cálculo posterior)
+    # Inicializar grp_vals si no existe
     if "grp_vals_cache" not in st.session_state:
-        st.session_state.grp_vals_cache = {g: default_shares[g] for g in GROUP_MAP}
+        # Composición inicial: solo gases (Intermedios=0, Pesados=0)
+        st.session_state.grp_vals_cache = {g: 0.0 for g in GROUP_MAP}
 
     grp_vals = st.session_state.grp_vals_cache
 
@@ -329,14 +336,20 @@ def main():
 
         st.session_state.grp_vals_cache = dict(grp_vals)
 
-        if st.button("Restaurar por defecto", use_container_width=True):
-            st.session_state.applied_raw = list(em.sliders_default)
-            st.session_state.pending_raw = list(em.sliders_default)
-            st.session_state.grp_vals_cache = {g: default_shares[g] for g in GROUP_MAP}
+        if st.button("Restaurar solo gases", use_container_width=True):
+            # Restaurar a solo gases (Intermedios=0, Pesados=0)
+            zero_raw = list(em.sliders_default)
+            for g in ["Intermedios", "Pesados"]:
+                for i in em.GROUPS[g]:
+                    zero_raw[i] = 0.0
+            st.session_state.applied_raw = zero_raw
+            st.session_state.pending_raw = zero_raw
+            st.session_state.grp_vals_cache = {g: 0.0 for g in GROUP_MAP}
             st.rerun()
 
-        # Calcular composición en tiempo real para el gráfico de barras
+        # Calcular composición: gases fijos + slider para Intermedios/Pesados
         raw_display = list(em.sliders_default)
+        # Aplicar solo los grupos con slider (Intermedios, Pesados)
         for g in GROUP_MAP:
             raw_display = adjust_group(raw_display, g, grp_vals[g] / 100.0)
 
