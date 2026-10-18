@@ -312,12 +312,16 @@ def main():
 
     grp_vals = st.session_state.grp_vals_cache
 
+    # Calcular composición en tiempo real (para ambos gráficos)
+    raw_display = list(em.sliders_default)
+    for g in GROUP_MAP:
+        raw_display = adjust_group(raw_display, g, grp_vals[g] / 100.0)
+
     col_diagram, col_controls = st.columns([2, 1])
 
     with col_diagram:
-        # Calcular envolvente
-        applied = st.session_state.applied_raw
-        env = em.compute_envelope(applied)
+        # Calcular envolvente con valores actuales (sin debounce)
+        env = em.compute_envelope(raw_display)
 
         if env is not None:
             st.plotly_chart(build_env_figure(env), use_container_width=True)
@@ -346,12 +350,6 @@ def main():
             st.session_state.pending_raw = zero_raw
             st.session_state.grp_vals_cache = {g: 0.0 for g in GROUP_MAP}
             st.rerun()
-
-        # Calcular composición: gases fijos + slider para Intermedios/Pesados
-        raw_display = list(em.sliders_default)
-        # Aplicar solo los grupos con slider (Intermedios, Pesados)
-        for g in GROUP_MAP:
-            raw_display = adjust_group(raw_display, g, grp_vals[g] / 100.0)
 
         z_display = em.normalize(raw_display)
         if z_display is None:
