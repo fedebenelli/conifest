@@ -312,25 +312,12 @@ def main():
 
     grp_vals = st.session_state.grp_vals_cache
 
-    # Calcular composición en tiempo real (para ambos gráficos)
-    raw_display = list(em.sliders_default)
-    for g in GROUP_MAP:
-        raw_display = adjust_group(raw_display, g, grp_vals[g] / 100.0)
-
     col_diagram, col_controls = st.columns([2, 1])
-
-    with col_diagram:
-        # Calcular envolvente con valores actuales (sin debounce)
-        env = em.compute_envelope(raw_display)
-
-        if env is not None:
-            st.plotly_chart(build_env_figure(env), use_container_width=True)
-        else:
-            st.warning("No fue posible calcular la envolvente para esta composición.")
 
     with col_controls:
         st.markdown("### Composición de la mezcla")
 
+        # Renderizar sliders primero (actualiza grp_vals con valores frescos)
         for g in GROUP_MAP:
             grp_vals[g] = st.slider(
                 f"{g}", 0.0, 100.0, grp_vals[g], 0.1,
@@ -351,6 +338,21 @@ def main():
             st.session_state.grp_vals_cache = {g: 0.0 for g in GROUP_MAP}
             st.rerun()
 
+    # Calcular composición con valores frescos de sliders (después de renderizar)
+    raw_display = list(em.sliders_default)
+    for g in GROUP_MAP:
+        raw_display = adjust_group(raw_display, g, grp_vals[g] / 100.0)
+
+    with col_diagram:
+        # Calcular envolvente con valores actuales (sin debounce)
+        env = em.compute_envelope(raw_display)
+
+        if env is not None:
+            st.plotly_chart(build_env_figure(env), use_container_width=True)
+        else:
+            st.warning("No fue posible calcular la envolvente para esta composición.")
+
+    with col_controls:
         z_display = em.normalize(raw_display)
         if z_display is None:
             z_display = np.zeros(em.nc)
